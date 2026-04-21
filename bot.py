@@ -37,23 +37,31 @@ STYLES = [
 ]
 
 def generate_image(prompt, filename):
-    try:
-        formatted_prompt = prompt.replace(" ", "%20")
-        url = f"https://image.pollinations.ai/prompt/{formatted_prompt}?width=1024&height=1024&nologo=true"
-        print(f"[+] Generating: {prompt[:50]}...")
-        response = requests.get(url, timeout=60)
-        if response.status_code == 200:
-            filepath = os.path.join(DESIGNS_FOLDER, filename)
-            with open(filepath, "wb") as f:
-                f.write(response.content)
-            print(f"    Saved: {filename}")
-            return filepath
-        else:
-            print(f"    Failed: {response.status_code}")
-            return None
-    except Exception as e:
-        print(f"    Error: {e}")
-        return None
+    formatted_prompt = prompt.replace(" ", "%20")
+    url = f"https://image.pollinations.ai/prompt/{formatted_prompt}?width=1024&height=1024&nologo=true"
+    print(f"[+] Generating: {prompt[:50]}...")
+
+    for attempt in range(3):
+        try:
+            response = requests.get(url, timeout=120)
+            if response.status_code == 200:
+                filepath = os.path.join(DESIGNS_FOLDER, filename)
+                with open(filepath, "wb") as f:
+                    f.write(response.content)
+                print(f"    Saved: {filename}")
+                return filepath
+            elif response.status_code == 429:
+                print(f"    Rate limited. Waiting 30 seconds...")
+                time.sleep(30)
+            else:
+                print(f"    Failed: {response.status_code}")
+                time.sleep(10)
+        except Exception as e:
+            print(f"    Error attempt {attempt+1}: {e}")
+            time.sleep(20)
+
+    print(f"    Giving up after 3 attempts.")
+    return None
 
 def generate_listing(niche):
     titles = [
@@ -99,7 +107,8 @@ def run_daily_job():
                 "tags": listing["tags"],
                 "description": listing["description"]
             })
-            time.sleep(5)
+
+        time.sleep(15)
 
     with open("listings_ready.json", "w") as f:
         json.dump(results, f, indent=2)
